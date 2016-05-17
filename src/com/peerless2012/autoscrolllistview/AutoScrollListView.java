@@ -150,12 +150,21 @@ public class AutoScrollListView extends ListView {
 	}
 	
 	private void checkPosition() {
-		int targetPosition = 0;
+		if (!mAutoScroll) return;
+		int targetPosition = -1;
 		int firstVisiblePosition = getFirstVisiblePosition();
 		if (firstVisiblePosition == 0) {
-			targetPosition = mInnerAdapter.getCount() -2;
+			AutoScroll autoScroll = (AutoScroll) mInnerAdapter;
+			targetPosition = mInnerAdapter.getCount() - autoScroll.getImmovableCount() * 2;
 		}
 		int lastVisiblePosition = getLastVisiblePosition();
+		if (lastVisiblePosition == getCount() - 1) {
+			AutoScroll autoScroll = (AutoScroll) mOutterAdapter;
+			targetPosition = autoScroll.getImmovableCount();
+		}
+		if (targetPosition >= 0 && firstVisiblePosition != targetPosition) {
+			setSelection(targetPosition);
+		}
 	}
 	
 	@SuppressLint("ClickableViewAccessibility")
