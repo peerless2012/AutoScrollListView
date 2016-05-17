@@ -3,6 +3,7 @@ package com.peerless2012.autoscrolllistview;
 import android.annotation.SuppressLint;
 import android.content.Context;
 import android.graphics.Canvas;
+import android.support.annotation.IntDef;
 import android.support.v4.widget.ListViewCompat;
 import android.util.AttributeSet;
 import android.util.Log;
@@ -25,6 +26,13 @@ import android.widget.Scroller;
 */
 public class AutoScrollListView extends ListView {
 	
+	public final static int SCROLL_UP = 0x00;
+	
+	public final static int SCROLL_DOWN = 0x01;
+	
+	@IntDef({SCROLL_DOWN,SCROLL_UP})
+	public @interface ScrollOritation{}
+	
 	private final static int DALY_TIME = 3000;
 
 	private LoopRunnable mLoopRunnable;
@@ -46,6 +54,19 @@ public class AutoScrollListView extends ListView {
 	private OnItemLongClickListener mOutterOnItemLongClickListener;
 	
 	private boolean mAutoScroll = false;
+	
+	/**
+	 * 滚动方向，默认向上滚动。
+	 */
+	private int mScrollOrientation = SCROLL_UP;
+	
+	private float mMoveDistance = 0;
+	
+	private float mPreX = 0;
+	
+	private float mPreY = 0;
+	
+	private boolean mIgnoreLongClick = false;
 	
 	public AutoScrollListView(Context context) {
 		this(context, null);
@@ -170,11 +191,35 @@ public class AutoScrollListView extends ListView {
 	@SuppressLint("ClickableViewAccessibility")
 	@Override
 	public boolean onTouchEvent(MotionEvent ev) {
-		if (ev.getAction() != MotionEvent.ACTION_MOVE) {
-			return super.onTouchEvent(ev);
-		}else {
-			return false;
+		if (ev.getAction() == MotionEvent.ACTION_DOWN) {
+			mMoveDistance = 0;
+			mPreX = ev.getX();
+			mPreY = ev.getY();
+			mIgnoreLongClick = false;
+		}else if (ev.getAction() == MotionEvent.ACTION_MOVE) {
+			mMoveDistance +=(Math.abs(ev.getX() - mPreX) + Math.abs(ev.getY() - mPreY));
+			mPreX = ev.getX();
+			mPreY = ev.getY();
+			if (mMoveDistance > 20 || !mScroller.isFinished()) {
+				mIgnoreLongClick = true;
+			}
+			return true;
+		}else if (ev.getAction() == MotionEvent.ACTION_UP 
+				|| ev.getAction() == MotionEvent.ACTION_CANCEL) {
+			if (mMoveDistance > 20 || !mScroller.isFinished()) {
+				ev.setAction(MotionEvent.ACTION_CANCEL);
+			}
+			mIgnoreLongClick = false;
 		}
+		return super.onTouchEvent(ev);
+	}
+	
+	/**
+	 * 设置滚动的防线
+	 * @param oritation 滚动方向，SCROLL_UP 向上，SCROLL_DOWN 向下。
+	 */
+	public void setScrollOrientation(@ScrollOritation int oritation) {
+		this.mScrollOrientation = oritation;
 	}
 	
 	/**
@@ -207,7 +252,8 @@ public class AutoScrollListView extends ListView {
 			Log.i("AutoScrollListView", "run");
 			mAnimating = true;
 			View childAt = getChildAt(0);
-			mScroller.startScroll(0, 0, 0, childAt.getMeasuredHeight() + getDividerHeight());
+			int scrollHeight = childAt.getMeasuredHeight() + getDividerHeight();
+			mScroller.startScroll(0, 0, 0, mScrollOrientation == SCROLL_UP ? scrollHeight : -scrollHeight);
 			invalidate();
 		}
 		
@@ -268,7 +314,7 @@ public class AutoScrollListView extends ListView {
 		@Override
 		public boolean onItemLongClick(AdapterView<?> parent, View view,
 				int position, long id) {
-			if (mOutterOnItemLongClickListener != null && mInnerAdapter != null) {
+			if (mOutterOnItemLongClickListener != null && mInnerAdapter != null && !mIgnoreLongClick) {
 				return mOutterOnItemLongClickListener.onItemLongClick(parent, view, (int)mInnerAdapter.getItemId(position), id);
 			}
 			return false;
